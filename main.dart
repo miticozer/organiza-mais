@@ -1,4 +1,7 @@
+
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   runApp(const MaterialApp(
@@ -18,15 +21,42 @@ class _OrganizaState extends State<Organiza> {
   final campo = TextEditingController();
   final tarefas = <String>[];
   final concluidas = <bool>[];
+  bool carregando = true;
+
+  @override
+  void initState() {
+    super.initState();
+    carregarTarefas();
+  }
+
+  Future<void> carregarTarefas() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dados = prefs.getString('tarefas_organiza') ;
+    if (dados != null) {
+      final lista = jsonDecode(dados) as List;
+      tarefas.addAll(lista.map((item) => item['texto'] as String));
+      concluidas.addAll(lista.map((item) => item['concluida'] as bool));
+    }
+    if (mounted) setState(() => carregando = false);
+  }
+
+  Future<void> salvarTarefas() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lista = List.generate(tarefas.length, (i) => {
+      'texto': tarefas[i],
+      'concluida': concluidas[i],
+    });
+    await prefs.setString('tarefas_organiza', jsonEncode(lista));
+  }
 
   void adicionar() {
     if (campo.text.trim().isEmpty) return;
-
     setState(() {
       tarefas.add(campo.text.trim());
       concluidas.add(false);
       campo.clear();
     });
+    salvarTarefas();
   }
 
   @override
@@ -37,118 +67,105 @@ class _OrganizaState extends State<Organiza> {
 
   @override
   Widget build(BuildContext context) {
-    final totalConcluidas =
-        concluidas.where((item) => item).length;
+    final totalConcluidas = concluidas.where((item) => item).length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6FC),
       appBar: AppBar(
-        title: const Text(
-          'Organiza+',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Organiza+',
+            style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFF3949AB),
         foregroundColor: Colors.white,
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Organize seu dia!',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$totalConcluidas de ${tarefas.length} tarefas concluídas',
-              style: const TextStyle(color: Colors.black54),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: campo,
-                    decoration: InputDecoration(
-                      hintText: 'Digite uma tarefa...',
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+      body: carregando
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Organize seu dia!',
+                      style: TextStyle(
+                          fontSize: 26, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text('$totalConcluidas de ${tarefas.length} tarefas concluídas',
+                      style: const TextStyle(color: Colors.black54)),
+                  const SizedBox(height: 20),
+                  Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: campo,
+                        decoration: InputDecoration(
+                          hintText: 'Digite uma tarefa...',
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onSubmitted: (_) => adicionar(),
                       ),
                     ),
-                    onSubmitted: (_) => adicionar(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton.filled(
-                  onPressed: adicionar,
-                  icon: const Icon(Icons.add),
-                  style: IconButton.styleFrom(
-                    backgroundColor: const Color(0xFF3949AB),
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: tarefas.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'Nenhuma tarefa cadastrada.\nAdicione sua primeira atividade!',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.black54),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: tarefas.length,
-                      itemBuilder: (context, index) {
-                        return Card(
-                          color: Colors.white,
-                          child: ListTile(
-                            leading: Checkbox(
-                              value: concluidas[index],
-                              activeColor: const Color(0xFF3949AB),
-                              onChanged: (valor) {
-                                setState(() {
-                                  concluidas[index] = valor ?? false;
-                                });
-                              },
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      onPressed: adicionar,
+                      icon: const Icon(Icons.add),
+                      style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xFF3949AB),
+                          foregroundColor: Colors.white),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+                  Expanded(
+                    child: tarefas.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'Nenhuma tarefa cadastrada.\nAdicione sua primeira atividade!',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: Colors.black54),
                             ),
-                            title: Text(
-                              tarefas[index],
-                              style: TextStyle(
-                                decoration: concluidas[index]
-                                    ? TextDecoration.lineThrough
-                                    : TextDecoration.none,
+                          )
+                        : ListView.builder(
+                            itemCount: tarefas.length,
+                            itemBuilder: (context, index) => Card(
+                              color: Colors.white,
+                              child: ListTile(
+                                leading: Checkbox(
+                                  value: concluidas[index],
+                                  activeColor: const Color(0xFF3949AB),
+                                  onChanged: (valor) {
+                                    setState(() {
+                                      concluidas[index] = valor ?? false;
+                                    });
+                                    salvarTarefas();
+                                  },
+                                ),
+                                title: Text(
+                                  tarefas[index],
+                                  style: TextStyle(
+                                    decoration: concluidas[index]
+                                        ? TextDecoration.lineThrough
+                                        : TextDecoration.none,
+                                  ),
+                                ),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.delete_outline,
+                                      color: Colors.red),
+                                  onPressed: () {
+                                    setState(() {
+                                      tarefas.removeAt(index);
+                                      concluidas.removeAt(index);
+                                    });
+                                    salvarTarefas();
+                                  },
+                                ),
                               ),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                color: Colors.red,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  tarefas.removeAt(index);
-                                  concluidas.removeAt(index);
-                                });
-                              },
                             ),
                           ),
-                        );
-                      },
-                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
     );
   }
 }

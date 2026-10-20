@@ -31,6 +31,9 @@ jobs:
       - name: Criar projeto Flutter para web
         run: flutter create app --platforms web
 
+      - name: Adicionar biblioteca de armazenamento
+        run: cd app && flutter pub add shared_preferences
+
       - name: Copiar código do Organiza+
         run: cp main.dart app/lib/main.dart
 
